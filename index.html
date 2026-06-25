@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Travel HD HUD - GitHub Online v11</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            background-color: #000000; color: #00f0ff; 
+            font-family: "Courier New", monospace, sans-serif;
+            overflow-x: hidden; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+        }
+        .scroll-container { position: relative; height: 850vh; background-color: #000000; }
+        .viewport { position: sticky; top: 0; left: 0; width: 100vw; height: 100vh; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+        #sequenceCanvas { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; filter: contrast(1.05) brightness(0.9); transform: translateZ(0); }
+        
+        /* HUD 框架 */
+        .hud-master-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; pointer-events: none; box-shadow: inset 0 0 100px rgba(0, 240, 255, 0.12); }
+        .hud-corner { position: absolute; width: 30px; height: 30px; border: 2px solid rgba(0, 240, 255, 0.4); }
+        .tc-left { top: 30px; left: 30px; border-right: none; border-bottom: none; }
+        .tc-right { top: 30px; right: 30px; border-left: none; border-bottom: none; }
+        .bc-left { bottom: 30px; left: 30px; border-right: none; border-top: none; }
+        .bc-right { bottom: 30px; right: 30px; border-left: none; border-top: none; }
+        .hud-side-scale { position: absolute; top: 30%; height: 40%; width: 60px; display: flex; flex-direction: column; justify-content: space-between; color: rgba(0, 240, 255, 0.3); font-size: 10px; }
+        .scale-left { left: 40px; border-right: 1px dashed rgba(0, 240, 255, 0.2); align-items: flex-end; padding-right: 8px;}
+        .scale-right { right: 40px; border-left: 1px dashed rgba(0, 240, 255, 0.2); align-items: flex-start; padding-left: 8px;}
+        .hud-crosshair { position: absolute; width: 120px; height: 120px; border: 1px solid rgba(0, 240, 255, 0.15); border-radius: 50%; display: flex; justify-content: center; align-items: center; }
+        .hud-crosshair::before, .hud-crosshair::after { content: ''; position: absolute; background: rgba(0, 240, 255, 0.3); }
+        .hud-crosshair::before { width: 20px; height: 1px; } .hud-crosshair::after { width: 1px; height: 20px; }
+        .hud-circle-inner { width: 80px; height: 80px; border: 1px dashed rgba(0, 240, 255, 0.2); border-radius: 50%; animation: spin 20s linear infinite; }
+        .hud-stream-data { position: absolute; top: 35px; left: 250px; font-size: 9px; color: rgba(0, 240, 255, 0.4); line-height: 1.4; }
+        .site-header { position: absolute; top: 0; left: 0; width: 100%; padding: 30px 50px; display: flex; justify-content: space-between; align-items: center; z-index: 10; }
+        .brand-logo { font-size: 1.2rem; font-weight: 900; letter-spacing: 5px; color: #00f0ff; text-shadow: 0 0 10px rgba(0,240,255,0.4); }
+        .hud-telemetry { position: absolute; bottom: 40px; left: 50px; z-index: 10; color: rgba(0, 240, 255, 0.5); font-size: 0.75rem; letter-spacing: 2px; line-height: 1.8; border-left: 2px solid #00f0ff; padding-left: 15px; }
+        .hud-value { color: #ffffff; font-weight: bold; text-shadow: 0 0 8px rgba(0,240,255,0.5); }
+        .cta-container { position: absolute; bottom: 40px; right: 50px; z-index: 10; }
+        .btn-launch { background: rgba(0, 240, 255, 0.02); border: 1px solid rgba(0, 240, 255, 0.4); color: #00f0ff; padding: 14px 28px; font-size: 0.75rem; letter-spacing: 3px; cursor: pointer; text-shadow: 0 0 5px #00f0ff; box-shadow: 0 0 10px rgba(0,240,255,0.1); transition: all 0.3s; }
+        .btn-launch:hover { background: #00f0ff; color: #000000; box-shadow: 0 0 25px #00f0ff; text-shadow: none; }
+
+        /* 中央高精文本 */
+        .hud-overlay { position: absolute; z-index: 15; text-align: center; pointer-events: none; display: flex; flex-direction: column; align-items: center; }
+        .hud-title { font-size: 2.6rem; font-weight: 400; letter-spacing: 18px; color: #ffffff; text-shadow: 0 0 8px rgba(0, 240, 255, 0.8), 0 0 20px rgba(0, 240, 255, 0.4); margin-bottom: 14px; }
+        .hud-subtitle { font-size: 0.8rem; font-weight: bold; letter-spacing: 10px; color: #00f0ff; text-transform: uppercase; text-shadow: 0 0 6px rgba(0, 240, 255, 0.8); background: rgba(0, 0, 0, 0.4); padding: 4px 12px; border-radius: 2px; }
+        .loading-screen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000000; display: flex; justify-content: center; align-items: center; z-index: 100; color: #00f0ff; letter-spacing: 3px; font-size: 14px; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div class="loading-screen" id="loader">GH_SERVER_CONNECTING... <span id="progress">0%</span></div>
+
+    <div class="hud-master-layer">
+        <div class="hud-corner tc-left"></div><div class="hud-corner tc-right"></div><div class="hud-corner bc-left"></div><div class="hud-corner bc-right"></div>
+        <div class="hud-side-scale scale-left"><div>+90 RAD</div><div>+60 RAD</div><div>+30 RAD</div><div>000 LVL</div><div>-30 RAD</div><div>-60 RAD</div><div>-90 RAD</div></div>
+        <div class="hud-side-scale scale-right"><div>1.00 Mach</div><div>0.85 Mach</div><div>0.60 Mach</div><div>0.30 Mach</div><div>0.12 Mach</div><div>0.02 Mach</div><div>0.00 Mach</div></div>
+        <div class="hud-stream-data" id="hudStream">LOG_SYS_BUS: [CONNECTING]<br>KERNEL_ADDR: 0x7FFF8BE3220A<br>MATRIX_REWRITE_FREQ: 60Hz</div>
+    </div>
+
+    <header class="site-header"><div class="brand-logo">VE-ORBIT.X</div></header>
+
+    <div class="hud-telemetry">
+        <div>ORBIT_CORE: <span class="hud-value" style="color: #00f0ff;">ONLINE</span></div>
+        <div>ALTITUDE: <span class="hud-value" id="hudAltitude">384,400 KM</span></div>
+        <div>DESCENT_V: <span class="hud-value" id="hudSpeed">0 KM/S</span></div>
+        <div>VECTOR_SYNC: <span class="hud-value" id="hudSync">0%</span></div>
+    </div>
+
+    <div class="cta-container"><button class="btn-launch" onclick="alert('SYSTEM ONLINE // TARGET ENGAGED')">ENGAGE SYSTEM</button></div>
+
+    <div class="scroll-container" id="scrollTrigger">
+        <div class="viewport">
+            <div class="hud-crosshair"><div class="hud-circle-inner"></div></div>
+            <div class="hud-overlay" id="textBlock">
+                <div class="hud-title" id="mainText">ENTER SYSTEM</div>
+                <div class="hud-subtitle" id="subText">SCROLL TO DESCENT</div>
+            </div>
+            <canvas id="sequenceCanvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+        gsap.registerPlugin(ScrollTrigger);
+
+        const canvas = document.getElementById("sequenceCanvas");
+        const ctx = canvas.getContext("2d");
+        const mainText = document.getElementById("mainText");
+        const subText = document.getElementById("subText");
+        const textBlock = document.getElementById("textBlock");
+        const loader = document.getElementById("loader");
+        const progressText = document.getElementById("progress");
+        const hudStream = document.getElementById("hudStream");
+        const hudAltitude = document.getElementById("hudAltitude");
+        const hudSpeed = document.getElementById("hudSpeed");
+        const hudSync = document.getElementById("hudSync");
+
+        const startFrame = 22;
+        const endFrame = 240;
+        const totalFrames = endFrame - startFrame + 1;
+        const images = [];
+        const airship = { frame: 0 };
+        let loadedCount = 0;
+        let currentStatus = "ENTER";
+
+        // 👑 核心黑魔法：智能 GitHub 跨文件夹路径分发器 (PNG 格式专用)
+        function getOnlineFramePath(index) {
+            let folder = "";
+            if (index >= 22 && index <= 51) folder = "00-jpg";
+            else if (index >= 52 && index <= 83) folder = "01-jpg";
+            else if (index >= 84 && index <= 107) folder = "02-jpg";
+            else if (index >= 108 && index <= 134) folder = "03-jpg";
+            else if (index >= 135 && index <= 160) folder = "04-jpg";
+            else if (index >= 161 && index <= 185) folder = "05-jpg";
+            else if (index >= 186 && index <= 209) folder = "06-jpg";
+            else if (index >= 210 && index <= 232) folder = "07-jpg";
+            else if (index >= 233 && index <= 240) folder = "08-jpg";
+
+            // 格式化为 ezgif-frame-XXX.png
+            const paddedIndex = index.toString().padStart(3, '0');
+            
+            // 拼接你 GitHub 仓库的绝对网络路径
+            return `https://raw.githubusercontent.com/pacguy-mtk/landing/main/${folder}/ezgif-frame-${paddedIndex}.png`;
+        }
+
+        // 网络同步预加载
+        for (let i = startFrame; i <= endFrame; i++) {
+            const img = new Image();
+            img.crossOrigin = "anonymous"; // 防止 GitHub 图片产生跨域 Canvas 污染
+            img.src = getOnlineFramePath(i);
+            img.onload = () => {
+                loadedCount++;
+                progressText.innerHTML = Math.round((loadedCount / totalFrames) * 100) + "%";
+                if (loadedCount === totalFrames) {
+                    loader.style.opacity = "0";
+                    setTimeout(() => loader.style.display = "none", 500);
+                    
+                    const dpr = window.devicePixelRatio || 1;
+                    canvas.width = images[0].width * dpr;
+                    canvas.height = images[0].height * dpr;
+                    ctx.scale(dpr, dpr);
+                    
+                    initScrollTimeline();
+                    startDataNoiseLoop();
+                }
+            };
+            images.push(img);
+        }
+
+        function updateHUDText(targetStatus, mainStr, subStr) {
+            if (currentStatus === targetStatus) return;
+            currentStatus = targetStatus;
+            gsap.to(textBlock, {
+                opacity: 0.2, scale: 0.96, duration: 0.1,
+                onComplete: () => {
+                    mainText.innerHTML = mainStr; subText.innerHTML = subStr;
+                    gsap.to(textBlock, { opacity: 1, scale: 1, duration: 0.3, ease: "power2.out" });
+                }
+            });
+        }
+
+        function initScrollTimeline() {
+            render();
+            ScrollTrigger.create({
+                trigger: "#scrollTrigger", start: "top top", end: "bottom bottom", scrub: 1.2,
+                onUpdate: (self) => {
+                    const progress = self.progress;
+                    hudAltitude.innerHTML = Math.round(384400 - (progress * 384280)).toLocaleString() + " KM";
+                    hudSpeed.innerHTML = (progress * 11.2).toFixed(2) + " KM/S";
+                    hudSync.innerHTML = Math.round(progress * 100) + "%";
+
+                    if (self.direction === 1) {
+                        if (progress > 0.15) updateHUDText("APPROACH", "APPROACHING LUNAR", "TARGET: EARTH // DESCENDING");
+                    } else {
+                        if (progress > 0.15) updateHUDText("RETRACT", "BACK TO ORBIT", "RETRACTING THRUSTERS");
+                        else updateHUDText("ENTER", "ENTER SYSTEM", "SCROLL TO DESCENT");
+                    }
+
+                    airship.frame = progress * (totalFrames - 1);
+                    render();
+                }
+            });
+        }
+
+        function render() {
+            const currentImg = images[Math.floor(airship.frame)];
+            if (currentImg && currentImg.complete) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(currentImg, 0, 0, currentImg.width, currentImg.height);
+            }
+        }
+
+        function startDataNoiseLoop() {
+            setInterval(() => {
+                const hex1 = Math.floor(Math.random() * 0xFFFFFF).toString(16).toUpperCase();
+                const hex2 = Math.floor(Math.random() * 0xFFFF).toString(16).toUpperCase();
+                hudStream.innerHTML = `LOG_SYS_BUS: [STREAMING]<br>KERNEL_ADDR: 0x7FFF${hex1}<br>SIGNAL_NOISE: ${(Math.random() * 100).toFixed(3)} dB // ERR_CODE: ${hex2}`;
+            }, 120);
+        }
+    </script>
+</body>
+</html>
